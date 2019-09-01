@@ -11,7 +11,7 @@ Pipe, the world seen by CCTV robots
 ![sample_pipe](./defect_pic/sample_pipe.jpg)
 
 defect: projected
-![projected_example](./defect_pic/projected_example.jpg)
+![projected_example](./defect_pic/projected_example.JPG)
 
 defect: projected (see closer)
-![projected_magnified_example](./defect_pic/projected_magnified_example.jpg)
+![projected_magnified_example](./defect_pic/projected_magnified_example.JPG)
