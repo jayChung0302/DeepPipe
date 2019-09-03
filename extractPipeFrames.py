@@ -1,3 +1,5 @@
+#-*- coding:utf-8 -*-
+
 import pandas as pd
 import cv2
 import os
@@ -28,7 +30,7 @@ def video2frame(videofilename, save_path):
 def INDEX_video2frame(videofilename, save_path, time):
     """This function is to make video's frame to the images from index time"""
     vidcap = cv2.VideoCapture(videofilename)
-    count = 0
+    cnt = 0
     frame_count = 0
     length = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
     width = int(vidcap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -39,13 +41,13 @@ def INDEX_video2frame(videofilename, save_path, time):
     while True:
         success, img = vidcap.read()
         frame_count = frame_count + 1
-        if frame_count < index_frame - 10:
+        if frame_count < index_frame - 1:
             continue
-        if frame_count > index_frame + 10:
+        if frame_count > index_frame + 1:
             break
         if not success:
             break
-        fname = "{}.jpg".format("{0:06d}".format(count))
+        fname = "{}.png".format("{0:06d}".format(cnt))
         #gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         try:
             if not (os.path.isdir(save_path)):
@@ -54,13 +56,21 @@ def INDEX_video2frame(videofilename, save_path, time):
             if e.errno != errno.EEXIST:
                 print("Failed to create directory.")
                 raise
-        cv2.imwrite(save_path + '/' + fname, img)  # save frame as JPEG file
-        count += 1
-    print("{} images are extracted in {}.".format(count, save_path))
+
+        cv2.imwrite(os.path.join(save_path, fname), img)  # save frame as JPEG file
+
+        print(save_path)
+        print(os.path.join(save_path, fname))
+
+        cnt += 1
+        print(frame_count)
+    print("{} images are extracted in {}.".format(cnt, save_path))
 
 if __name__ == '__main__':
     excel_name = 'C:/Users/lenovo/Dropbox/PROJECT/Sewer Pipe/location_information/관로 이상항목별 동영상 재생위치 - 김포.xlsx'
-    df = pd.read_excel(excel_name, sheet_name=0)
+    #excel_name = 'C:/Users/lenovo/Dropbox/PROJECT/Sewer Pipe/location_information/관로 이상항목별 동영상 재생위치 - 성남.xlsx'
+    #excel_name = 'C:/Users/lenovo/Dropbox/PROJECT/Sewer Pipe/location_information/관로 이상항목별 동영상 재생위치 - 진주.xlsx'
+    df = pd.read_excel(excel_name, sheet_name=2)
     cctv_name = list(df['Unnamed: 1'])
     defect_name = list(df['Unnamed: 2'])
     defect_time = list(df['Unnamed: 3'])
@@ -77,12 +87,12 @@ if __name__ == '__main__':
             continue
         if defect_name not in defect_dic:
             defect_dic[defect_name] = 1
-        else :
+        else:
             defect_dic[defect_name] = defect_dic[defect_name] + 1
 
         defect_time = defect_time.replace('[','').replace(']','').split(':')
         defect_time = time(int(defect_time[0]), int(defect_time[1]), int(defect_time[2])).second
 
         INDEX_video2frame(fpath + cctv_name + ext, save_path + '/' + defect_name, defect_time)
-        break
+
     class_names = sorted(list(defect_dic.keys()))
