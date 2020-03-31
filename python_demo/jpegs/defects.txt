@@ -1,0 +1,11 @@
+2020331 pipe inspection results
+2.1333, defectName, 64
+4.2667, defectName, 128
+6.4000, defectName, 192
+8.5333, defectName, 256
+10.6667, defectName, 320
+12.8000, defectName, 384
+14.9333, defectName, 448
+17.0667, defectName, 512
+19.2000, defectName, 576
+21.3333, defectName, 640

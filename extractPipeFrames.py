@@ -70,7 +70,7 @@ if __name__ == '__main__':
     excel_name = 'C:/Users/lenovo/Dropbox/PROJECT/Sewer Pipe/location_information/관로 이상항목별 동영상 재생위치 - 김포.xlsx'
     #excel_name = 'C:/Users/lenovo/Dropbox/PROJECT/Sewer Pipe/location_information/관로 이상항목별 동영상 재생위치 - 성남.xlsx'
     #excel_name = 'C:/Users/lenovo/Dropbox/PROJECT/Sewer Pipe/location_information/관로 이상항목별 동영상 재생위치 - 진주.xlsx'
-    df = pd.read_excel(excel_name, sheet_name=2)
+    df = pd.read_excel(excel_name, sheet_name=0)
     cctv_name = list(df['Unnamed: 1'])
     defect_name = list(df['Unnamed: 2'])
     defect_time = list(df['Unnamed: 3'])
@@ -78,7 +78,7 @@ if __name__ == '__main__':
 
     save_path = 'C:/Users/lenovo/Dropbox/LAB/DATASET/Datasets_SewerPipe'
     fpath = 'E:/00.성과물/김포 동영상/기본계획/'  # 추출할 비디오 데이터 폴더들이 들어있는 main directory 설정.
-    ext = '.AVI'
+    ext = ['.AVI', '.avi', '.mp4', '.MPG']
 
     for i, k in enumerate(zip(cctv_name, defect_name, defect_time)):
         cctv_name, defect_name, defect_time = k
