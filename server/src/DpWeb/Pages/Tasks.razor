@@ -1,0 +1,69 @@
+﻿@page "/tasks"
+
+@using DpDb;
+@using Microsoft.AspNetCore.WebUtilities;
+@using Microsoft.EntityFrameworkCore;
+
+@inject DpDbContext context
+@inject NavigationManager navManager
+
+<button class="btn btn-success float-right" @onclick="RunButton_Click">Run Pipeline</button>
+
+@if (tasks == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+<table class="table table-light table-bordered table-striped">
+    <thead class="thead-light">
+        <tr>
+            <th>ID</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var pipeTask in tasks)
+{
+        <tr>
+            <td><a href="tasks/@pipeTask.PipeTaskId">@pipeTask.PipeTaskId</a></td>
+            <td>@pipeTask.Registered.ToLocalTime()</td>
+        </tr>
+}
+    </tbody>
+</table>
+}
+
+@code {
+    private const int TASK_PER_PAGE = 30;
+    private PipeTask[] tasks;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = navManager.ToAbsoluteUri(navManager.Uri);
+        var map = QueryHelpers.ParseQuery(uri.Query);
+        if (!(map.TryGetValue("page", out var value) &&
+            value.Count == 1 &&
+            int.TryParse(value.Single(), out var page) &&
+            page > 0))
+        {
+            var redirect = QueryHelpers.AddQueryString(uri.AbsolutePath, "page", "1");
+            navManager.NavigateTo(redirect);
+            page = 1;
+        }
+
+        this.tasks =
+               await context
+                   .TbPipeTask
+                   .OrderByDescending(e => e.Registered)
+                   .Skip(TASK_PER_PAGE * (page - 1))
+                   .Take(TASK_PER_PAGE)
+                   .AsNoTracking()
+                   .ToArrayAsync();
+    }
+
+    private void RunButton_Click(MouseEventArgs args)
+    {
+        navManager.NavigateTo("/tasks/new");
+    }
+}

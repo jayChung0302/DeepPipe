@@ -1,0 +1,99 @@
+﻿@page "/tasks/{TaskId:guid}"
+
+@using DpDb;
+@using DpWeb.Services;
+@using Microsoft.EntityFrameworkCore;
+@using System.Threading;
+
+@inject DpDbContext context
+@inject ProcessService processService
+@inject NavigationManager navManager
+
+@implements IDisposable;
+
+@if (task == null)
+{
+    <p>NOT FOUND</p>
+}
+else if (message != null)
+{
+    <p>@message</p>
+}
+else
+{
+<table class="table table-light table-bordered table-striped">
+    <thead class="thead-light">
+        <tr>
+            <th>Timestamp</th>
+            <th>Defect</th>
+            <th>Index</th>
+            <th>Image</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var defect in task.Defects.OrderBy(e => e.Timestamp))
+        {
+            <tr>
+                <td>@defect.Timestamp</td>
+                <td>@defect.DefectName</td>
+                <td>@defect.Index</td>
+                <td><img src="data:image/png;base64, @(Convert.ToBase64String( defect.Image))"/></td>
+            </tr>
+        }
+    </tbody>
+</table>
+}
+
+@code {
+    [Parameter]
+    public Guid TaskId { get; set; }
+    private PipeTask task = null;
+    private string message = null;
+    private CancellationTokenSource tokenSource = new CancellationTokenSource();
+
+    private async Task UpdateDefectsAsync()
+    {
+        task = await context
+            .TbPipeTask
+            .Include(e => e.Defects)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(e => e.PipeTaskId == TaskId);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await UpdateDefectsAsync();
+
+        if (task == null || // URL ERROR
+            task.Defects.Any() // Success
+            )
+        {
+            return;
+        }
+
+        while (processService.TrtGetStatus(TaskId, out var status))
+        {
+            switch (status)
+            {
+                case TaskStatus.WaitingForActivation:
+                    message = "Now loading";
+                    await Task.Delay(1000);
+                    continue;
+                case TaskStatus.RanToCompletion:
+                    message = null;
+                    await UpdateDefectsAsync();
+                    return;
+                default:
+                    message = "Failed";
+                    return;
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        tokenSource?.Cancel();
+        tokenSource?.Dispose();
+        tokenSource = null;
+    }
+}

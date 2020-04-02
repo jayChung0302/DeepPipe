@@ -1,0 +1,141 @@
+﻿@page "/tasks/new";
+
+@implements IDisposable;
+
+@using Blazor.FileReader;
+@using DpDb;
+@using DpWeb.Services;
+@using Microsoft.Extensions.Logging;
+@using System.Buffers;
+@using System.Diagnostics;
+@using System.IO;
+@using System.Security.Cryptography;
+@using System.Text;
+@using System.Threading;
+@using System.Threading.Tasks;
+
+@inject IFileReaderService fileReaderService
+@inject ProcessService processService
+@inject NavigationManager navManager
+@inject DpDbContext context
+@inject ILogger<TasksNew> logger
+
+@if (!isReceiving)
+{
+#warning TODO: File dialog. Extension filter
+<div style="display: block;padding: 20px;margin-bottom: 10px;border: 2px dashed black;border-radius: 5px;position: relative;height: 400px;padding-top:200px"
+     class="text-center"
+     @ref="fileTarget"
+     @ondrop="OnDrop">
+    @(selectedFileName != null ? Path.GetFileName(selectedFileName) : "Drop file here.")
+</div>
+
+<button class="btn btn-primary btn-lg btn-block" @onclick="UploadFileAsync">Upload</button>
+}
+else
+{
+<div class="progress" style="height: 30px">
+    <div class="progress-bar"
+         role="progressbar"
+         style="width: @(progress)%"
+         aria-valuemin="0"
+         aria-valuemax="100"
+         aria-valuenow="@progress"> @(progress)%</div>
+</div>
+}
+
+@code {
+    private CancellationTokenSource tokenSource = new CancellationTokenSource();
+    private ElementReference fileTarget;
+    private IFileReaderRef fileReferenece;
+    private bool isReceiving = false;
+    private int progress = 0;
+    private string selectedFileName = null;
+
+    private async Task OnDrop(EventArgs e)
+    {
+        var files = await fileReferenece.EnumerateFilesAsync();
+        var file = files.FirstOrDefault();
+        if (file != null)
+        {
+            var fileInfo = await file.ReadFileInfoAsync();
+            selectedFileName = fileInfo.Name;
+        }
+        else
+        {
+            selectedFileName = null;
+        }
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            fileReferenece = fileReaderService.CreateReference(fileTarget);
+            await fileReferenece.RegisterDropEventsAsync();
+        }
+    }
+
+    private async Task UploadFileAsync()
+    {
+        var files = await fileReferenece.EnumerateFilesAsync();
+        if (!files.Any())
+        {
+            return;
+        }
+
+        try
+        {
+            isReceiving = true;
+            var targetFile = files.First();
+            var fileInfo = await targetFile.ReadFileInfoAsync();
+            logger.LogInformation("Receiving {@}", new { fileInfo.Name });
+            string tempFileName = Path.GetTempFileName();
+            var token = tokenSource.Token;
+            await using (var remoteFileStream = await targetFile.OpenReadAsync())
+            await using (var localFileStream = new FileStream(tempFileName, FileMode.Open))
+            using (var owner = MemoryPool<byte>.Shared.Rent(4 * 1024 * 1024))
+            using (var md5 = new MD5CryptoServiceProvider())
+            {
+                var buffer = owner.Memory;
+                int bytesRead = 0;
+                do
+                {
+                    bytesRead = await remoteFileStream.ReadAsync(buffer, token);
+                    await localFileStream.WriteAsync(buffer.Slice(0, bytesRead), token);
+                    progress = (int)(localFileStream.Length * 100 / fileInfo.Size);
+                    StateHasChanged();
+                } while (bytesRead > 0);
+
+                localFileStream.Seek(0, SeekOrigin.Begin);
+                var sb = new StringBuilder();
+                foreach (byte v in md5.ComputeHash(localFileStream))
+                {
+                    sb.AppendFormat("{0:x2}", v);
+                }
+                var pipeTask = new PipeTask
+                {
+                    PipeTaskId = Guid.NewGuid(),
+                    Registered = DateTime.UtcNow,
+                    VideoMD5 = sb.ToString(),
+                };
+                processService.Invoke(pipeTask.PipeTaskId, tempFileName);
+                await context.TbPipeTask.AddAsync(pipeTask, token);
+                await context.SaveChangesAsync(token);
+                navManager.NavigateTo($"/tasks/{pipeTask.PipeTaskId}");
+            }
+        }
+        finally
+        {
+            isReceiving = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        tokenSource?.Cancel();
+        tokenSource?.Dispose();
+        tokenSource = null;
+    }
+}
