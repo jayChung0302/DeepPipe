@@ -24,3 +24,5 @@ git clone https://github.com/jayChung0302/DeepPipe
 mv DeepPipe
 dotnet run --project server/src/DpWeb/DpWeb.csproj --DeepPipe:Python python3 --DeepPipe:Command $(pwd)/python_demo/inout.py
 ```
+
+![](docs/images/demo.gif)  
