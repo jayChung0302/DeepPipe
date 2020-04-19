@@ -20,14 +20,40 @@
 @inject DpDbContext context
 @inject ILogger<TasksNew> logger
 
+    <style>
+    .@dropTargetClass {
+        display: block;
+        padding: 20px;
+        margin-bottom: 10px;
+        border: 1px dashed black;
+        border-radius: 5px;
+        position: relative;
+    }
+    .@dropTargetDragClass {
+        border-color: orangered;
+        font-weight: bold;
+    }
+    input.clickable {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        margin-top: -20px;
+        margin-left: -20px;
+        cursor: pointer;
+    }
+    </style>
+
 @if (!isReceiving)
 {
-#warning TODO: File dialog. Extension filter
-<div style="display: block;padding: 20px;margin-bottom: 10px;border: 2px dashed black;border-radius: 5px;position: relative;height: 400px;padding-top:200px"
-     class="text-center"
-     @ref="fileTarget"
-     @ondrop="OnDrop">
-    @(selectedFileName != null ? Path.GetFileName(selectedFileName) : "Drop file here.")
+<div class="@dropTargetClass @(isHover ? dropTargetDragClass : string.Empty)">
+    <input type="file"
+           class="clickable"
+           @ref="fileTarget"
+           @ondragenter="OnDragEnter"
+           @ondragleave="OnDragLeave"
+           @onchange="RefreshFileAsync"/>
+    @(fileInfo?.Name ?? "Drop file here.")
 </div>
 
 <button class="btn btn-primary btn-lg btn-block" @onclick="UploadFileAsync">Upload</button>
@@ -45,42 +71,55 @@ else
 }
 
 @code {
+    private const string dropTargetDragClass = "droptarget-drag";
+    private const string dropTargetClass = "droptarget";
+    private bool isHover = false;
     private CancellationTokenSource tokenSource = new CancellationTokenSource();
     private ElementReference fileTarget;
-    private IFileReaderRef fileReferenece;
+    private IFileReaderRef fileReaderRef;
+    private IFileReference fileReference = null;
+    private IFileInfo fileInfo = null;
     private bool isReceiving = false;
     private int progress = 0;
-    private string selectedFileName = null;
 
-    private async Task OnDrop(EventArgs e)
-    {
-        var files = await fileReferenece.EnumerateFilesAsync();
-        var file = files.FirstOrDefault();
-        if (file != null)
-        {
-            var fileInfo = await file.ReadFileInfoAsync();
-            selectedFileName = fileInfo.Name;
-        }
-        else
-        {
-            selectedFileName = null;
-        }
-        StateHasChanged();
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override void OnAfterRender(bool firstRender)
     {
         if (firstRender)
         {
-            fileReferenece = fileReaderService.CreateReference(fileTarget);
-            await fileReferenece.RegisterDropEventsAsync();
+            fileReaderRef = fileReaderService.CreateReference(fileTarget);
         }
+    }
+
+    private void OnDragEnter(EventArgs e)
+    {
+        this.isHover = true;
+    }
+
+    private void OnDragLeave(EventArgs e)
+    {
+        this.isHover = false;
+    }
+
+    private async Task RefreshFileAsync()
+    {
+        var files = await fileReaderRef.EnumerateFilesAsync().ConfigureAwait(true);
+        this.fileReference = files.FirstOrDefault();
+        if (fileReference != null)
+        {
+            this.fileInfo = await fileReference.ReadFileInfoAsync().ConfigureAwait(true);
+        }
+        else
+        {
+            this.fileInfo = null;
+        }
+        this.isHover = false;
+        StateHasChanged();
     }
 
     private async Task UploadFileAsync()
     {
-        var files = await fileReferenece.EnumerateFilesAsync();
-        if (!files.Any())
+        await RefreshFileAsync().ConfigureAwait(true);
+        if (fileReference == null)
         {
             return;
         }
@@ -88,12 +127,11 @@ else
         try
         {
             isReceiving = true;
-            var targetFile = files.First();
-            var fileInfo = await targetFile.ReadFileInfoAsync();
+            var fileInfo = await fileReference.ReadFileInfoAsync().ConfigureAwait(true);
             logger.LogInformation("Receiving {@}", new { fileInfo.Name });
             string tempFileName = Path.GetTempFileName();
             var token = tokenSource.Token;
-            await using (var remoteFileStream = await targetFile.OpenReadAsync())
+            await using (var remoteFileStream = await fileReference.OpenReadAsync().ConfigureAwait(true))
             await using (var localFileStream = new FileStream(tempFileName, FileMode.Open))
             using (var owner = MemoryPool<byte>.Shared.Rent(4 * 1024 * 1024))
             using (var md5 = new MD5CryptoServiceProvider())
@@ -102,8 +140,8 @@ else
                 int bytesRead = 0;
                 do
                 {
-                    bytesRead = await remoteFileStream.ReadAsync(buffer, token);
-                    await localFileStream.WriteAsync(buffer.Slice(0, bytesRead), token);
+                    bytesRead = await remoteFileStream.ReadAsync(buffer, token).ConfigureAwait(true);
+                    await localFileStream.WriteAsync(buffer.Slice(0, bytesRead), token).ConfigureAwait(true);
                     progress = (int)(localFileStream.Length * 100 / fileInfo.Size);
                     StateHasChanged();
                 } while (bytesRead > 0);
@@ -121,8 +159,8 @@ else
                     VideoMD5 = sb.ToString(),
                 };
                 processService.Invoke(pipeTask.PipeTaskId, tempFileName);
-                await context.TbPipeTask.AddAsync(pipeTask, token);
-                await context.SaveChangesAsync(token);
+                await context.TbPipeTask.AddAsync(pipeTask, token).ConfigureAwait(true);
+                await context.SaveChangesAsync(token).ConfigureAwait(true);
                 navManager.NavigateTo($"/tasks/{pipeTask.PipeTaskId}");
             }
         }
