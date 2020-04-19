@@ -103,13 +103,16 @@ else
     private async Task RefreshFileAsync()
     {
         var files = await fileReaderRef.EnumerateFilesAsync().ConfigureAwait(true);
-        this.fileReference = files.FirstOrDefault();
-        if (fileReference != null)
+        if (files.FirstOrDefault() is IFileReference newFileReference &&
+            await newFileReference.ReadFileInfoAsync().ConfigureAwait(true) is IFileInfo newFileInfo &&
+            newFileInfo.Type.StartsWith("video/"))
         {
-            this.fileInfo = await fileReference.ReadFileInfoAsync().ConfigureAwait(true);
+            this.fileReference = newFileReference;
+            this.fileInfo = newFileInfo;
         }
         else
         {
+            this.fileReference = null;
             this.fileInfo = null;
         }
         this.isHover = false;
