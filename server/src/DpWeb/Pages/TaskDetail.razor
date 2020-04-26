@@ -21,27 +21,7 @@ else if (message != null)
 }
 else
 {
-<table class="table table-light table-bordered table-striped">
-    <thead class="thead-light">
-        <tr>
-            <th>Timestamp</th>
-            <th>Defect</th>
-            <th>Index</th>
-            <th>Image</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var defect in task.Defects.OrderBy(e => e.Timestamp))
-        {
-            <tr>
-                <td>@defect.Timestamp</td>
-                <td>@defect.DefectName</td>
-                <td>@defect.Index</td>
-                <td><img src="data:image/png;base64, @(Convert.ToBase64String( defect.Image))"/></td>
-            </tr>
-        }
-    </tbody>
-</table>
+    <TaskDiagram Defects="task.Defects.OrderBy(e => e.Index).ToArray()" />
 }
 
 @code {
