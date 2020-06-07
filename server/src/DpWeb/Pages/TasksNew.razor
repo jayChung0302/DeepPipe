@@ -141,7 +141,6 @@
 
     private async Task UploadFileAsync()
     {
-        await RefreshFileAsync().ConfigureAwait(true);
         if (!videoFiles.Any())
         {
             return;
