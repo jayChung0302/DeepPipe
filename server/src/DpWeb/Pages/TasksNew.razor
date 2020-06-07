@@ -152,23 +152,20 @@
             isReceiving = true;
             taskLinks.Clear();
             var token = tokenSource.Token;
-            using var owner = MemoryPool<byte>.Shared.Rent(4 * 1024 * 1024);
             using var md5 = new MD5CryptoServiceProvider();
-            var buffer = owner.Memory;
-            int bytesRead = 0;
             var sb = new StringBuilder();
             foreach (var (reference, info) in videoFiles)
             {
                 string tempFileName = Path.GetTempFileName();
                 await using var remoteFileStream = await reference.OpenReadAsync().ConfigureAwait(true);
                 await using var localFileStream = new FileStream(tempFileName, FileMode.Open);
-                do
+                var cpTask = remoteFileStream.CopyToAsync(localFileStream, token);
+                while (!cpTask.IsCompleted)
                 {
-                    bytesRead = await remoteFileStream.ReadAsync(buffer, token).ConfigureAwait(true);
-                    await localFileStream.WriteAsync(buffer.Slice(0, bytesRead), token).ConfigureAwait(true);
                     progress = (int)(localFileStream.Length * 100 / info.Size);
                     StateHasChanged();
-                } while (bytesRead > 0);
+                    await Task.Delay(100).ConfigureAwait(true);
+                }
                 localFileStream.Seek(0, SeekOrigin.Begin);
                 sb.Clear();
                 foreach (byte v in md5.ComputeHash(localFileStream))
