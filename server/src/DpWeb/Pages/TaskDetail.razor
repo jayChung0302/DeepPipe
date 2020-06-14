@@ -14,15 +14,22 @@
 @if (task == null)
 {
     <p>NOT FOUND</p>
+    return;
 }
-else if (message != null)
+
+@if (message != null)
 {
     <p>@message</p>
+    return;
 }
-else
-{
+
+<button class="btn btn-secondary btn-lg btn-block"
+        onclick="printDiv('taskDiagram')">
+    Print
+</button>
+<div id="taskDiagram">
     <TaskDiagram Defects="task.Defects.OrderBy(e => e.Index).ToArray()" />
-}
+</div>
 
 @code {
     [Parameter]
