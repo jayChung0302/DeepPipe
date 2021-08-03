@@ -5,6 +5,7 @@ import torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
 import os
+import pickle
 import tkinter.ttk as ttk
 import tkinter.messagebox as msgbox
 from tkinter import *
@@ -61,10 +62,10 @@ def check_valid_img(img, idx):
     else:
         return True
 
-def get_result(idx, probs, preds):
+def get_result(idx, probs, preds, dic):
     statement = f'{idx} - top5:'
     for prob, pred in zip(probs, preds):
-        statement += f'[{pred.item()} / {prob.item() * 100:.2f}%]'
+        statement += f'[{dic[pred.item()]} / {prob.item() * 100:.2f}%]'
     if cmb_save.get() == 'True':
         logfile = txt_dest_path.get()+'/log.txt'
         if os.path.exists(f'{logfile}'):
@@ -89,7 +90,8 @@ def get_CAM(idx, net, img, preds):
     plt.imsave(f'{txt_dest_path.get()}/{idx}_activated_on_{target_category}.jpg',visualization)
 
 def run_process(images):
-    
+    with open("class_names.pkl", "rb") as file:
+        dic = pickle.load(file)
     use_gpu = True if cmb_gpu.get()=="True" else False
     if use_gpu:
         if not torch.cuda.is_available():
@@ -100,32 +102,38 @@ def run_process(images):
     else:
         device = torch.device('cpu')
     net = torch.load('resnet50.pth', map_location=device).eval()
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    #TODO: 코드 효율 개선
+    
     transform = transforms.Compose([
         transforms.Resize(224),
-        transforms.ToTensor()
+        transforms.ToTensor(),
+        normalize
     ])
-
-    images = [transform(x) for x in images]
+    to_tensor = transforms.ToTensor()
+    trans_images = [transform(x) for x in images]
     
     soft = nn.Softmax()
-    for idx, img in enumerate(images):
+    for idx, img in enumerate(trans_images):
         with torch.no_grad():
             if use_gpu:
                 img = img.cuda()
             
             output = soft(net(img.unsqueeze(0))[0])
             probs, preds = torch.topk(output, 5)
-            get_result(idx, probs, preds)
+            get_result(idx, probs, preds, dic)
         if cmb_CAM.get() == 'True':
-            get_CAM(idx, net, img, preds)
+            get_CAM(idx, net, to_tensor(images[idx]), preds)
 
-        progress = (idx + 1) / len(images) * 100
+        progress = (idx + 1) / len(trans_images) * 100
         p_var.set(progress)
         progress_bar.update()
         result_file.update()
     
     msgbox.showinfo("Info", "process is done")
     return
+
 # 시작
 def start():
     # 파일목록 확인
